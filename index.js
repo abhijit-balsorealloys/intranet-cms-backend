@@ -14,6 +14,9 @@ app.use(cors({
 // Middleware
 app.use(bodyParser.json());
 
+// Serve the banner folder publicly
+app.use("/public", express.static("D:/intranet/public"));
+
 // Routes
 app.use("/api/users", userRoutes);
 

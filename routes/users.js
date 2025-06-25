@@ -1,6 +1,11 @@
+
 const express = require("express");
+const multer = require("multer");
 const crypto = require("crypto");
 const router = express.Router();
+const fs = require("fs");
+const path = require("path");
+
 const { mysqlConnection, poolPromise,mssql } = require('../db');
 
 
@@ -13,7 +18,7 @@ router.get("/", (req, res) => {
     res.json(results);
   });
 });
-// Get employee details
+// Get CMS Login 
 router.post("/adminlogin", async (req, res) => {
   const { userid, password } = req.body;
   const inputHash = hashPassword(password);
@@ -29,7 +34,7 @@ router.post("/adminlogin", async (req, res) => {
     }
     // If password is correct, fetch additional user details
     mysqlConnection.query(
-      "CALL SP_INTRANET_ADMIN_USER_GET(?, ?)",
+      "CALL balcorpdb.SP_INTRANET_ADMIN_USER_GET(?, ?)",
       [userid, inputHash],
       (err, results) => {
         if (err) {
@@ -63,7 +68,78 @@ const getUserPassword = (userid) => {
     );
   });
 };
+// ✅ Setup Multer storage
+const uploadDir = "D:/intranet/public/images/banner";
+    const storage = multer.diskStorage({
+        destination: (req, file, cb) => {
+            cb(null, uploadDir);
+        },
+        filename: (req, file, cb) => {
+          const uniqueName = file.originalname;
+          cb(null, uniqueName);
+        }
+    });
+  const upload = multer({ storage });
 
+router.post("/bannerform", upload.single("bannerImage"), async (req, res) => {
+  const { heading, shortDesc } = req.body;
+  const imageFile = req.file;
+
+  if (!heading || !shortDesc) {
+    return res.status(400).json({ error: "Title and Short Description are required!" });
+  }
+
+  if (!imageFile) {
+    return res.status(400).json({ error: "Banner image is missing!" });
+  }
+
+  try {
+    mysqlConnection.query(
+      "CALL balcorpdb.SP_INTRANET_CMS_BANNER_INSERT(?, ?)",
+      [heading, shortDesc],
+      async (err, results) => {
+        if (err) {
+          return res.status(500).json({ error: err.message });
+        }
+
+        const dbResponse = results?.[0]?.[0];
+        const dbImageName = dbResponse?.ICB_NAME;
+        
+        const fileExtension = path.extname(imageFile.originalname);
+        const finalFileName = dbImageName +'.jpg';
+
+        // 2. Paths
+        const oldPath = imageFile.path;
+        const newPath = path.join(uploadDir, finalFileName);
+
+        // 3. Ensure uploadDir exists
+        if (!fs.existsSync(uploadDir)) {
+          fs.mkdirSync(uploadDir, { recursive: true });
+        }
+         const width = 540;
+        const height = 939;
+        // 4. Rename file from temp to final name
+        fs.rename(oldPath, newPath, (renameErr) => {
+          if (renameErr) {
+            console.error("❌ Rename error:", renameErr);
+            return res.status(500).json({ error: "Failed to rename uploaded file" });
+          }
+
+          return res.status(200).json({
+            status: "success",
+            message: "Banner uploaded & renamed successfully!",
+             dimensions: { width: 939, height: 540 },
+            savedImage: `/public/images/banner/${finalFileName}`,
+            data: results[0],
+          });
+        });
+      }
+    );
+  } catch (err) {
+    console.error("❌ Server error:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
 //API to get emlpoyee birthday
 router.get("/getemployeebirthday", async (req, res) => {
   try {
