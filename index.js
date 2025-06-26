@@ -4,6 +4,10 @@ const bodyParser = require("body-parser");
 const userRoutes = require("./routes/users");
 
 const app = express();
+
+app.use(express.json()); 
+app.use(express.urlencoded({ extended: true })); 
+
 const PORT = 3014;
 
 app.use(cors({
@@ -13,9 +17,6 @@ app.use(cors({
 }));
 // Middleware
 app.use(bodyParser.json());
-
-// Serve the banner folder publicly
-app.use("/public", express.static("D:/intranet/public"));
 
 // Routes
 app.use("/api/users", userRoutes);

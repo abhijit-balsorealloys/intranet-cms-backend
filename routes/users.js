@@ -80,7 +80,7 @@ const uploadDir = "D:/intranet/public/images/banner";
         }
     });
   const upload = multer({ storage });
-
+// API for Insert Banner in CMS
 router.post("/bannerform", upload.single("bannerImage"), async (req, res) => {
   const { heading, shortDesc } = req.body;
   const imageFile = req.file;
@@ -140,21 +140,279 @@ router.post("/bannerform", upload.single("bannerImage"), async (req, res) => {
     res.status(500).json({ error: "Internal server error" });
   }
 });
-//API to get emlpoyee birthday
-router.get("/getemployeebirthday", async (req, res) => {
+const uploadDirmd = "D:/intranet/public/images/md_message";
+    const storagemd = multer.diskStorage({
+        destination: (req, file, cb) => {
+            cb(null, uploadDirmd);
+        },
+        filename: (req, file, cb) => {
+          const uniqueName = file.originalname;
+          cb(null, uniqueName);
+        }
+    });
+  const uploadmd = multer({ storage: storagemd });
+// API for Insert MD Message in CMS
+router.post("/md-form", upload.single("Image"), async (req, res) => {
+  const { heading, desc } = req.body;
+  const imageFile = req.file;
+
+  if (!heading || !desc) {
+    return res.status(400).json({ error: "Title and Description are required!" });
+  }
+
+  if (!imageFile) {
+    return res.status(400).json({ error: "MD image is missing!" });
+  }
+
   try {
     mysqlConnection.query(
-      "CALL balcorpdb.SP_INTRANET_UP_BIRTHDAY_GET()",
-      (err, results) => {
+      "CALL balcorpdb.SP_INTRANET_CMS_MD_MESSAGES_INSERT(?, ?)",
+      [heading, desc],
+      async (err, results) => {
         if (err) {
           return res.status(500).json({ error: err.message });
         }
-        res.json(results[0]); // Return user data
+
+        const dbResponse = results?.[0]?.[0];
+        const dbImageName = dbResponse?.ICMDM_NAME;
+        
+        const fileExtension = path.extname(imageFile.originalname);
+        const finalFileName = dbImageName +'.jpg';
+
+        // 2. Paths
+        const oldPath = imageFile.path;
+        const newPath = path.join(uploadDirmd, finalFileName);
+
+        // 3. Ensure uploadDir exists
+        if (!fs.existsSync(uploadDirmd)) {
+          fs.mkdirSync(uploadDirmd, { recursive: true });
+        }
+         const width = 540;
+        const height = 939;
+        // 4. Rename file from temp to final name
+        fs.rename(oldPath, newPath, (renameErr) => {
+          if (renameErr) {
+            console.error("❌ Rename error:", renameErr);
+            return res.status(500).json({ error: "Failed to rename uploaded file" });
+          }
+
+          return res.status(200).json({
+            status: "success",
+            message: "MD Image uploaded & renamed successfully!",
+             dimensions: { width: 939, height: 540 },
+            savedImage: `/public/images/md_message/${finalFileName}`,
+            data: results[0],
+          });
+        });
       }
     );
   } catch (err) {
-    console.error("❌ Error:", err);
-    res.status(500).json({ error: "Unable to fetch employee birthday" });
+    console.error("❌ Server error:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+// Submit Current happenings Form
+router.post("/current-happening", async (req, res) => {
+  const { heading, desc } = req.body;
+
+  if (!heading || !desc) {
+    return res.status(400).json({ error: "Title and Description are required!" });
+  }
+
+  try {
+    mysqlConnection.query(
+      "CALL balcorpdb.SP_INTRANET_CMS_CURRENT_HAPPEN_INSERT(?, ?)",
+      [heading, desc],
+      async (err, results) => {
+        if (err) {
+          return res.status(500).json({ error: err.message });
+        }
+
+         return res.status(200).json({
+            status: "success",
+            message: "Subitted successfully!",
+            data: results[0],
+          });
+      }
+    );
+  } catch (err) {
+    console.error("❌ Server error:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+const uploadDirBNews = "D:/intranet/public/images/news";
+    const storageBNews = multer.diskStorage({
+        destination: (req, file, cb) => {
+            cb(null, uploadDirBNews);
+        },
+        filename: (req, file, cb) => {
+          const uniqueName = file.originalname;
+          cb(null, uniqueName);
+        }
+    });
+  const uploadBNews = multer({ storage: storageBNews });
+// API for Insert BAL News in CMS
+router.post("/bal-news", uploadBNews.single("Image"), async (req, res) => {
+  const { heading, desc } = req.body;
+  const imageFile = req.file;
+
+  if (!heading || !desc) {
+    return res.status(400).json({ error: "Title and Description are required!" });
+  }
+
+  if (!imageFile) {
+    return res.status(400).json({ error: "BAL News image is missing!" });
+  }
+
+  try {
+    mysqlConnection.query(
+      "CALL balcorpdb.SP_INTRANET_CMS_COMP_NEWS_INSERT(?, ?)",
+      [heading, desc],
+      async (err, results) => {
+        if (err) {
+          return res.status(500).json({ error: err.message });
+        }
+
+        const dbResponse = results?.[0]?.[0];
+        const dbImageName = dbResponse?.ICCN_NAME;
+        
+        const fileExtension = path.extname(imageFile.originalname);
+        const finalFileName = dbImageName +'.jpg';
+
+        // 2. Paths
+        const oldPath = imageFile.path;
+        const newPath = path.join(uploadDirBNews, finalFileName);
+
+        // 3. Ensure uploadDir exists
+        if (!fs.existsSync(uploadDirBNews)) {
+          fs.mkdirSync(uploadDirBNews, { recursive: true });
+        }
+    
+        // 4. Rename file from temp to final name
+        fs.rename(oldPath, newPath, (renameErr) => {
+          if (renameErr) {
+            console.error("❌ Rename error:", renameErr);
+            return res.status(500).json({ error: "Failed to rename uploaded file" });
+          }
+
+          return res.status(200).json({
+            status: "success",
+            message: "BAL News Image uploaded & renamed successfully!",
+            dimensions: { width: 939, height: 540 },
+            savedImage: `/public/images/news/${finalFileName}`,
+            data: results[0],
+          });
+        });
+      }
+    );
+  } catch (err) {
+    console.error("❌ Server error:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+// Submit BAL Stories Form
+router.post("/bal-stories", async (req, res) => {
+  const { heading, desc } = req.body;
+
+  if (!heading || !desc) {
+    return res.status(400).json({ error: "Title and Description are required!" });
+  }
+  try {
+    mysqlConnection.query(
+      "CALL balcorpdb.SP_INTRANET_CMS_COMP_STORIES_INSERT(?, ?)",
+      [heading, desc],
+      async (err, results) => {
+        if (err) {
+          return res.status(500).json({ error: err.message });
+        }
+
+         return res.status(200).json({
+            status: "success",
+            message: "Subitted successfully!",
+            data: results[0],
+          });
+      }
+    );
+  } catch (err) {
+    console.error("❌ Server error:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+// API for Insert BAL Videos in CMS
+const uploadDirVideo = "D:/intranet/public/images/videos";
+    const storagevideo = multer.diskStorage({
+        destination: (req, file, cb) => {
+            cb(null, uploadDirVideo);
+        },
+        filename: (req, file, cb) => {
+          const uniqueName = file.originalname;
+          cb(null, uniqueName);
+        }
+    });
+    const fileFilter = (req, file, cb) => {
+  const allowedTypes = ['video/mp4', 'video/x-matroska', 'video/avi', 'video/mpeg'];
+  if (allowedTypes.includes(file.mimetype)) {
+    cb(null, true);
+  } else {
+    cb(new Error("Only video files are allowed!"), false);
+  }
+};
+  const uploadVideos = multer({ storage: storagevideo, fileFilter });
+router.post("/bal-videos", uploadVideos.single("video"), async (req, res) => {
+  const { heading } = req.body;
+  const videoFile = req.file;
+
+  if (!heading) {
+    return res.status(400).json({ error: "Title is required!" });
+  }
+
+  if (!videoFile) {
+    return res.status(400).json({ error: "BAL Video is missing!" });
+  }
+
+  try {
+    mysqlConnection.query(
+      "CALL balcorpdb.SP_INTRANET_CMS_COMPANY_VIDEOS_INSERT(?)",
+      [heading],
+      async (err, results) => {
+        if (err) {
+          return res.status(500).json({ error: err.message });
+        }
+
+        const dbResponse = results?.[0]?.[0];
+        const dbVideoName = dbResponse?.ICCV_NAME;
+        
+        const fileExtension = path.extname(videoFile.originalname);
+        const finalFileName = dbVideoName +'.MP4';
+
+        // 2. Paths
+        const oldPath = videoFile.path;
+        const newPath = path.join(uploadDirVideo, finalFileName);
+
+        // 3. Ensure uploadDir exists
+        if (!fs.existsSync(uploadDirVideo)) {
+          fs.mkdirSync(uploadDirVideo, { recursive: true });
+        }
+    
+        // 4. Rename file from temp to final name
+        fs.rename(oldPath, newPath, (renameErr) => {
+          if (renameErr) {
+            console.error("❌ Rename error:", renameErr);
+            return res.status(500).json({ error: "Failed to rename uploaded file" });
+          }
+
+          return res.status(200).json({
+            status: "success",
+            message: "BAL Video is uploaded & renamed successfully!",
+            savedImage: `/public/images/videos/${finalFileName}`,
+            data: results[0],
+          });
+        });
+      }
+    );
+  } catch (err) {
+    console.error("❌ Server error:", err);
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 //API to get new joinee info 
