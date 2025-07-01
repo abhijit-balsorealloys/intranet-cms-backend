@@ -1,8 +1,10 @@
 
 const express = require("express");
+const xlsx = require('xlsx');
 const multer = require("multer");
 const crypto = require("crypto");
 const router = express.Router();
+const moment = require('moment');
 const fs = require("fs");
 const path = require("path");
 
@@ -357,7 +359,7 @@ const uploadDirVideo = "D:/intranet/public/images/videos";
     cb(new Error("Only video files are allowed!"), false);
   }
 };
-  const uploadVideos = multer({ storage: storagevideo, fileFilter });
+const uploadVideos = multer({ storage: storagevideo, fileFilter });
 router.post("/bal-videos", uploadVideos.single("video"), async (req, res) => {
   const { heading } = req.body;
   const videoFile = req.file;
@@ -415,21 +417,366 @@ router.post("/bal-videos", uploadVideos.single("video"), async (req, res) => {
     res.status(500).json({ error: "Internal server error" });
   }
 });
-//API to get new joinee info 
-router.get("/getnewjoineeinfo", async (req, res) => {
+const uploadDirtraining = "D:/intranet/public/images/training";
+    // const storagetraining = multer.diskStorage({
+    //     destination: (req, file, cb) => {
+    //         cb(null, uploadDirtraining);
+    //     },
+    //     filename: (req, file, cb) => {
+    //       const uniqueName = file.originalname;
+    //       cb(null, uniqueName);
+    //     }
+    // });
+  const uploadtraining = multer({ storage });
+// API for Insert BAL Training Calendar in CMS
+router.post("/training-calendar", uploadtraining.single("file"), async (req, res) => {
+  const { month } = req.body;
+  const imageFile = req.file;
+
+  if (!month) {
+    return res.status(400).json({ error: "Month & Year Selection is required!" });
+  }
+
+  if (!imageFile) {
+    return res.status(400).json({ error: "Training Calendar is missing!" });
+  }
+
+  try {
+    const workbook = xlsx.readFile(imageFile.path);
+    const sheetName = workbook.SheetNames[0];
+    const worksheet = workbook.Sheets[sheetName];
+    const rows = xlsx.utils.sheet_to_json(worksheet);
+
+    // Track inserted results
+    const inserted = [];
+
+    for (let index = 0; index < rows.length; index++) {
+      const row = rows[index];
+
+      const SN = `${index + 1}`;
+      const ProgramCategory = row['Program Category'] || "";
+      const TrainerName = row['Trainer/ Faculty Name'] || "";
+      const TrainerCategory = row['Trainer Category'] || "";
+      const TrainingTopic = row['Training Topic'] || "";
+      const ProgramDuration = row['Program Duration (In Hrs.)'] || "";
+      const Nosession = row['No. of session'] || "";
+      const TargetAudience = row['Target Audience'] || "";
+      const AudienceNos = row['Audience Nos'] || "";
+      const Venue = row['Venue'] || "";
+      const ProgramDateRaw = row['Program Date'];
+
+      let NewDate = null;
+      if (typeof ProgramDateRaw === 'number') {
+        NewDate = new Date((ProgramDateRaw - 25569) * 86400 * 1000);
+      } else {
+        NewDate = new Date(ProgramDateRaw);
+      }
+      const formattedDate = moment(NewDate).format("YYYY-MM-DD");
+
+      // Wrap query in a Promise
+      const result = await new Promise((resolve, reject) => {
+        mysqlConnection.query(
+          "CALL balcorpdb.SP_INTRANET_TRAINING_CALENDAR_INSERT(?,?,?,?,?,?,?,?,?,?,?,?)",
+          [month, SN, ProgramCategory, TrainerName, TrainerCategory, TrainingTopic, ProgramDuration, Nosession, TargetAudience, AudienceNos, Venue, formattedDate],
+          (err, results) => {
+            if (err) {
+              return reject(err);
+            }
+            resolve(results);
+          }
+        );
+      });
+
+      inserted.push(result);
+    }
+
+    return res.status(200).json({
+      status: "success",
+      message: "BAL Training Calendar inserted successfully!",
+      insertedRows: inserted.length,
+    });
+
+  } catch (err) {
+    console.error("❌ Server error:", err);
+    return res.status(500).json({ error: "Internal server error", details: err.message });
+  }
+});
+const uploadDirthought = "D:/intranet/public/images/thought";
+    const storagethought = multer.diskStorage({
+        destination: (req, file, cb) => {
+            cb(null, uploadDirthought);
+        },
+        filename: (req, file, cb) => {
+          const uniqueName = file.originalname;
+          cb(null, uniqueName);
+        }
+    });
+  const uploadthought = multer({ storage: storagethought });
+// API for Insert BAL Thought Of The Day in CMS
+router.post("/thought", uploadthought.single("Image"), async (req, res) => {
+  const { heading } = req.body;
+  const imageFile = req.file;
+
+  if (!heading) {
+    return res.status(400).json({ error: "Title is required!" });
+  }
+
+  if (!imageFile) {
+    return res.status(400).json({ error: "BAL Thought For The Day image is missing!" });
+  }
+
   try {
     mysqlConnection.query(
-      "CALL balcorpdb.SP_INTRANET_NEWJOINING_GET()",
-      (err, results) => {
+      "CALL balcorpdb.SP_INTRANET_CMS_THOUGHT_OF_DAY_INSERT(?)",
+      [heading],
+      async (err, results) => {
         if (err) {
           return res.status(500).json({ error: err.message });
         }
-        res.json(results[0]); // Return user data
+
+        const dbResponse = results?.[0]?.[0];
+        const dbImageName = dbResponse?.ICTOD_NAME;
+        
+        const fileExtension = path.extname(imageFile.originalname);
+        const finalFileName = dbImageName +'.jpg';
+
+        // 2. Paths
+        const oldPath = imageFile.path;
+        const newPath = path.join(uploadDirthought, finalFileName);
+
+        // 3. Ensure uploadDir exists
+        if (!fs.existsSync(uploadDirthought)) {
+          fs.mkdirSync(uploadDirthought, { recursive: true });
+        }
+    
+        // 4. Rename file from temp to final name
+        fs.rename(oldPath, newPath, (renameErr) => {
+          if (renameErr) {
+            console.error("❌ Rename error:", renameErr);
+            return res.status(500).json({ error: "Failed to rename uploaded file" });
+          }
+
+          return res.status(200).json({
+            status: "success",
+            message: "BAL Thought For the Day Image is Uploaded successfully!",
+            dimensions: { width: 939, height: 540 },
+            savedImage: `/public/images/thought/${finalFileName}`,
+            data: results[0],
+          });
+        });
       }
     );
   } catch (err) {
-    console.error("❌ Error:", err);
-    res.status(500).json({ error: "Unable to get new joinee info" });
+    console.error("❌ Server error:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+const uploadDirholiday = "D:/intranet/public/images/holiday_notice";
+    const storageholiday = multer.diskStorage({
+        destination: (req, file, cb) => {
+            cb(null, uploadDirholiday);
+        },
+        filename: (req, file, cb) => {
+          const uniqueName = file.originalname;
+          cb(null, uniqueName);
+        }
+    });
+  const uploadholiday = multer({ storage: storageholiday });
+// API for Insert BAL Thought Of The Day in CMS
+router.post("/holiday-notice", uploadholiday.single("Image"), async (req, res) => {
+  const { heading } = req.body;
+  const imageFile = req.file;
+
+  if (!heading) {
+    return res.status(400).json({ error: "Title is required!" });
+  }
+
+  if (!imageFile) {
+    return res.status(400).json({ error: "BAL Holiday Notice image is missing!" });
+  }
+
+  try {
+    mysqlConnection.query(
+      "CALL balcorpdb.SP_INTRANET_CMS_HOLIDAY_NOTICE_INSERT(?)",
+      [heading],
+      async (err, results) => {
+        if (err) {
+          return res.status(500).json({ error: err.message });
+        }
+
+        const dbResponse = results?.[0]?.[0];
+        const dbImageName = dbResponse?.ICHN_NAME;
+        
+        const fileExtension = path.extname(imageFile.originalname);
+        const finalFileName = dbImageName +'.jpg';
+
+        // 2. Paths
+        const oldPath = imageFile.path;
+        const newPath = path.join(uploadDirholiday, finalFileName);
+
+        // 3. Ensure uploadDir exists
+        if (!fs.existsSync(uploadDirholiday)) {
+          fs.mkdirSync(uploadDirholiday, { recursive: true });
+        }
+    
+        // 4. Rename file from temp to final name
+        fs.rename(oldPath, newPath, (renameErr) => {
+          if (renameErr) {
+            console.error("❌ Rename error:", renameErr);
+            return res.status(500).json({ error: "Failed to rename uploaded file" });
+          }
+
+          return res.status(200).json({
+            status: "success",
+            message: "BAL Holiday Notice Image is Uploaded successfully!",
+            dimensions: { width: 939, height: 540 },
+            savedImage: `/public/images/holiday_notice/${finalFileName}`,
+            data: results[0],
+          });
+        });
+      }
+    );
+  } catch (err) {
+    console.error("❌ Server error:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+const uploadDirNotice = "D:/intranet/public/images/notice";
+    const storageNotice = multer.diskStorage({
+        destination: (req, file, cb) => {
+            cb(null, uploadDirNotice);
+        },
+        filename: (req, file, cb) => {
+          const uniqueName = file.originalname;
+          cb(null, uniqueName);
+        }
+    });
+  const uploadNotice = multer({ storage: storageNotice });
+// API for Insert BAL Notice Board in CMS
+router.post("/notice", uploadNotice.single("Image"), async (req, res) => {
+  const { heading } = req.body;
+  const imageFile = req.file;
+
+  if (!heading) {
+    return res.status(400).json({ error: "Title is required!" });
+  }
+
+  if (!imageFile) {
+    return res.status(400).json({ error: "BAL Notice File is missing!" });
+  }
+
+  try {
+    mysqlConnection.query(
+      "CALL balcorpdb.SP_INTRANET_CMS_NOTICE_BOARD_INSERT(?)",
+      [heading],
+      async (err, results) => {
+        if (err) {
+          return res.status(500).json({ error: err.message });
+        }
+
+        const dbResponse = results?.[0]?.[0];
+        const dbImageName = dbResponse?.ICNB_NAME;
+        
+        const fileExtension = path.extname(imageFile.originalname);
+        const finalFileName = dbImageName +'.pdf';
+
+        // 2. Paths
+        const oldPath = imageFile.path;
+        const newPath = path.join(uploadDirNotice, finalFileName);
+
+        // 3. Ensure uploadDir exists
+        if (!fs.existsSync(uploadDirNotice)) {
+          fs.mkdirSync(uploadDirNotice, { recursive: true });
+        }
+    
+        // 4. Rename file from temp to final name
+        fs.rename(oldPath, newPath, (renameErr) => {
+          if (renameErr) {
+            console.error("❌ Rename error:", renameErr);
+            return res.status(500).json({ error: "Failed to rename uploaded file" });
+          }
+
+          return res.status(200).json({
+            status: "success",
+            message: "BAL Notice Board File is Uploaded successfully!",
+            savedImage: `/public/images/notice/${finalFileName}`,
+            data: results[0],
+          });
+        });
+      }
+    );
+  } catch (err) {
+    console.error("❌ Server error:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+const uploadDirAward = "D:/intranet/public/images/award";
+    const storageAward = multer.diskStorage({
+        destination: (req, file, cb) => {
+            cb(null, uploadDirAward);
+        },
+        filename: (req, file, cb) => {
+          const uniqueName = file.originalname;
+          cb(null, uniqueName);
+        }
+    });
+  const uploadAward = multer({ storage: storageAward });
+// API for Insert BAL Notice Board in CMS
+router.post("/awards", uploadAward.single("Image"), async (req, res) => {
+  const { heading } = req.body;
+  const imageFile = req.file;
+
+  if (!heading) {
+    return res.status(400).json({ error: "Title is required!" });
+  }
+
+  if (!imageFile) {
+    return res.status(400).json({ error: "BAL Employee Award Image is missing!" });
+  }
+
+  try {
+    mysqlConnection.query(
+      "CALL balcorpdb.SP_INTRANET_CMS_EMPLOYEE_AWARD_INSERT(?)",
+      [heading],
+      async (err, results) => {
+        if (err) {
+          return res.status(500).json({ error: err.message });
+        }
+
+        const dbResponse = results?.[0]?.[0];
+        const dbImageName = dbResponse?.ICEA_NAME;
+        
+        const fileExtension = path.extname(imageFile.originalname);
+        const finalFileName = dbImageName +'.jpg';
+
+        // 2. Paths
+        const oldPath = imageFile.path;
+        const newPath = path.join(uploadDirAward, finalFileName);
+
+        // 3. Ensure uploadDir exists
+        if (!fs.existsSync(uploadDirAward)) {
+          fs.mkdirSync(uploadDirAward, { recursive: true });
+        }
+    
+        // 4. Rename file from temp to final name
+        fs.rename(oldPath, newPath, (renameErr) => {
+          if (renameErr) {
+            console.error("❌ Rename error:", renameErr);
+            return res.status(500).json({ error: "Failed to rename uploaded file" });
+          }
+
+          return res.status(200).json({
+            status: "success",
+            message: "BAL Employee Award File is Uploaded successfully!",
+            savedImage: `/public/images/award/${finalFileName}`,
+            data: results[0],
+          });
+        });
+      }
+    );
+  } catch (err) {
+    console.error("❌ Server error:", err);
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 //API to change password 
