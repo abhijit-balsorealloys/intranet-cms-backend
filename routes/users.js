@@ -445,33 +445,107 @@ router.post("/training-calendar", uploadtraining.single("file"), async (req, res
     const workbook = xlsx.readFile(imageFile.path);
     const sheetName = workbook.SheetNames[0];
     const worksheet = workbook.Sheets[sheetName];
+    const range = xlsx.utils.decode_range(worksheet['!ref']);
+    
+    // Manually set the range to start from row 4 (headers) - this is 0-indexed row 3
+    // Row 4 contains headers, Row 5+ contains data
+    const dataRange = {
+      s: { c: range.s.c, r: 3 }, // Start from row 4 (0-indexed 3) for headers
+      e: { c: range.e.c, r: range.e.r }
+    };
+    
+    // Create a new worksheet reference with the correct range
+    worksheet['!ref'] = xlsx.utils.encode_range(dataRange);
+    
+    // Now convert to JSON - this will properly use row 4 as headers and row 5+ as data
     const rows = xlsx.utils.sheet_to_json(worksheet);
+
+    console.log(`Found ${rows.length} rows of training data`);
 
     // Track inserted results
     const inserted = [];
+    const errors = [];
 
     for (let index = 0; index < rows.length; index++) {
       const row = rows[index];
 
       const SN = `${index + 1}`;
-      const ProgramCategory = row['Program Category'] || "";
-      const TrainerName = row['Trainer/ Faculty Name'] || "";
-      const TrainerCategory = row['Trainer Category'] || "";
-      const TrainingTopic = row['Training Topic'] || "";
-      const ProgramDuration = row['Program Duration (In Hrs.)'] || "";
-      const Nosession = row['No. of session'] || "";
-      const TargetAudience = row['Target Audience'] || "";
-      const AudienceNos = row['Audience Nos'] || "";
-      const Venue = row['Venue'] || "";
-      const ProgramDateRaw = row['Program Date'];
+      const ProgramCategory = (row['Program Category'] || '').toString().trim();
+        const TrainerName = (row['Trainer/ Faculty Name'] || '').toString().trim();
+        const TrainerCategory = (row['Trainer Category'] || '').toString().trim();
+        const TrainingTopic = (row['Training Topic'] || '').toString().trim();
+        
+        // Handle numeric fields - convert empty strings to null or 0
+        let ProgramDuration = row['Program Duration (In Hrs.)'];
+        if (ProgramDuration === '' || ProgramDuration === null || ProgramDuration === undefined) {
+          ProgramDuration = null; // or 0, depending on your database requirements
+        } else {
+          ProgramDuration = parseFloat(ProgramDuration);
+          if (isNaN(ProgramDuration)) {
+            ProgramDuration = null;
+          }
+        }
 
-      let NewDate = null;
-      if (typeof ProgramDateRaw === 'number') {
-        NewDate = new Date((ProgramDateRaw - 25569) * 86400 * 1000);
-      } else {
-        NewDate = new Date(ProgramDateRaw);
-      }
-      const formattedDate = moment(NewDate).format("YYYY-MM-DD");
+        let Nosession = row['No. of session'];
+        if (Nosession === '' || Nosession === null || Nosession === undefined) {
+          Nosession = null; // or 0, depending on your database requirements
+        } else {
+          Nosession = parseInt(Nosession);
+          if (isNaN(Nosession)) {
+            Nosession = null;
+          }
+        }
+
+        const TargetAudience = (row['Target Audience'] || '').toString().trim();
+        const AudienceNos = (row['Audience Nos'] || '').toString().trim();
+        const Venue = (row['Venue'] || '').toString().trim();
+        const ProgramDateRaw = row['Program Date'];
+
+        // Handle date conversion more robustly
+        let formattedDate = null;
+
+        if (ProgramDateRaw) {
+          let NewDate = null;
+          
+          try {
+            if (typeof ProgramDateRaw === 'number') {
+              // Excel date serial number
+              NewDate = new Date((ProgramDateRaw - 25569) * 86400 * 1000);
+            } else if (ProgramDateRaw instanceof Date) {
+              // Already a Date object
+              NewDate = ProgramDateRaw;
+            } else {
+              // String date
+              NewDate = new Date(ProgramDateRaw);
+            }
+            
+            // Validate the date
+            if (!isNaN(NewDate.getTime())) {
+              formattedDate = moment(NewDate).format("YYYY-MM-DD");
+            } else {
+              console.warn(`Invalid date in row ${index + 5}: ${ProgramDateRaw}`);
+              formattedDate = null;
+            }
+          } catch (dateError) {
+            console.warn(`Date conversion error in row ${index + 5}:`, dateError.message);
+            formattedDate = null;
+          }
+        }
+
+        console.log(`Processing Excel row ${index + 5}:`, {
+          SN,
+          ProgramCategory,
+          TrainerName,
+          TrainingTopic,
+          ProgramDuration,
+          Nosession,
+          formattedDate
+        });
+
+        // Validate required fields before database insertion
+        if (!TrainingTopic.trim()) {
+          throw new Error('Training Topic is required');
+        }
 
       // Wrap query in a Promise
       const result = await new Promise((resolve, reject) => {
