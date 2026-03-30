@@ -71,7 +71,7 @@ const getUserPassword = (userid) => {
   });
 };
 // ✅ Setup Multer storage
-const uploadDir = "D:/intranet/public/images/banner";
+const uploadDir = "C:/inetpub/wwwroot/Intranetapp/intranet/public/images/banner";
     const storage = multer.diskStorage({
         destination: (req, file, cb) => {
             cb(null, uploadDir);
@@ -142,7 +142,7 @@ router.post("/bannerform", upload.single("bannerImage"), async (req, res) => {
     res.status(500).json({ error: "Internal server error" });
   }
 });
-const uploadDirmd = "D:/intranet/public/images/md_message";
+const uploadDirmd = "C:/inetpub/wwwroot/Intranetapp/intranet/public/images/md_message";
     const storagemd = multer.diskStorage({
         destination: (req, file, cb) => {
             cb(null, uploadDirmd);
@@ -242,7 +242,7 @@ router.post("/current-happening", async (req, res) => {
     res.status(500).json({ error: "Internal server error" });
   }
 });
-const uploadDirBNews = "D:/intranet/public/images/news";
+const uploadDirBNews = "C:/inetpub/wwwroot/Intranetapp/intranet/public/images/news";
     const storageBNews = multer.diskStorage({
         destination: (req, file, cb) => {
             cb(null, uploadDirBNews);
@@ -341,7 +341,7 @@ router.post("/bal-stories", async (req, res) => {
   }
 });
 // API for Insert BAL Videos in CMS
-const uploadDirVideo = "D:/intranet/public/images/videos";
+const uploadDirVideo = "C:/inetpub/wwwroot/Intranetapp/intranet/public/images/videos";
     const storagevideo = multer.diskStorage({
         destination: (req, file, cb) => {
             cb(null, uploadDirVideo);
@@ -417,7 +417,7 @@ router.post("/bal-videos", uploadVideos.single("video"), async (req, res) => {
     res.status(500).json({ error: "Internal server error" });
   }
 });
-const uploadDirtraining = "D:/intranet/public/images/training";
+const uploadDirtraining = "C:/inetpub/wwwroot/Intranetapp/intranet/public/images/training";
     // const storagetraining = multer.diskStorage({
     //     destination: (req, file, cb) => {
     //         cb(null, uploadDirtraining);
@@ -427,7 +427,7 @@ const uploadDirtraining = "D:/intranet/public/images/training";
     //       cb(null, uniqueName);
     //     }
     // });
-  const uploadtraining = multer({ storage });
+ const uploadtraining = multer({ storage });
 // API for Insert BAL Training Calendar in CMS
 router.post("/training-calendar", uploadtraining.single("file"), async (req, res) => {
   const { month } = req.body;
@@ -575,7 +575,7 @@ router.post("/training-calendar", uploadtraining.single("file"), async (req, res
     return res.status(500).json({ error: "Internal server error", details: err.message });
   }
 });
-const uploadDirthought = "D:/intranet/public/images/thought";
+const uploadDirthought = "C:/inetpub/wwwroot/Intranetapp/intranet/public/images/thought";
     const storagethought = multer.diskStorage({
         destination: (req, file, cb) => {
             cb(null, uploadDirthought);
@@ -645,7 +645,7 @@ router.post("/thought", uploadthought.single("Image"), async (req, res) => {
     res.status(500).json({ error: "Internal server error" });
   }
 });
-const uploadDirholiday = "D:/intranet/public/images/holiday_notice";
+const uploadDirholiday = "C:/inetpub/wwwroot/Intranetapp/intranet/public/images/holiday_notice";
     const storageholiday = multer.diskStorage({
         destination: (req, file, cb) => {
             cb(null, uploadDirholiday);
@@ -715,7 +715,7 @@ router.post("/holiday-notice", uploadholiday.single("Image"), async (req, res) =
     res.status(500).json({ error: "Internal server error" });
   }
 });
-const uploadDirNotice = "D:/intranet/public/images/notice";
+const uploadDirNotice = "C:/inetpub/wwwroot/Intranetapp/intranet/public/images/notice";
     const storageNotice = multer.diskStorage({
         destination: (req, file, cb) => {
             cb(null, uploadDirNotice);
@@ -784,7 +784,7 @@ router.post("/notice", uploadNotice.single("Image"), async (req, res) => {
     res.status(500).json({ error: "Internal server error" });
   }
 });
-const uploadDirAward = "D:/intranet/public/images/award";
+const uploadDirAward = "C:/inetpub/wwwroot/Intranetapp/intranet/public/images/award";
     const storageAward = multer.diskStorage({
         destination: (req, file, cb) => {
             cb(null, uploadDirAward);
@@ -905,19 +905,19 @@ async function checkPassword(userid, inputPassword) {
   return storedPassword.toLowerCase() === inputHash; // Directly return comparison result
 }
 //API to fetch employee attendance
-router.get("/getemployeeattendance/:P_EmpId", async (req, res) => {
-  const { P_EmpId } = req.params;
-  try {
-    const pool = await poolPromise;
-    const result = await pool
-          .request()
-          .input('P_EmpId', mssql.VarChar(10), P_EmpId )
-          .execute('spEmpAttendance');
-        return res.json(result.recordset);
-      } catch (err) {
-        console.error('Error in retriving store procedure data', err);
-      }
-});
+// router.get("/getemployeeattendance/:P_EmpId", async (req, res) => {
+//   const { P_EmpId } = req.params;
+//   try {
+//     const pool = await poolPromise;
+//     const result = await pool
+//           .request()
+//           .input('P_EmpId', mssql.VarChar(10), P_EmpId )
+//           .execute('spEmpAttendance');
+//         return res.json(result.recordset);
+//       } catch (err) {
+//         console.error('Error in retriving store procedure data', err);
+//       }
+// });
 //API to fetch training details
 router.get("/gettrainingcalender", async (req, res) => {
   try {
